@@ -12,13 +12,90 @@
 </head>
 <body>
   <main id="app">
+    <section class="landing" id="landing" aria-label="PUREFXAI RPG landing page">
+      <div class="landing-bg" aria-hidden="true"></div>
+      <nav class="landing-nav">
+        <div class="brand"><i>P</i><span>PUREFXAI <b>RPG</b></span></div>
+        <div class="nav-pills">
+          <span>ONLINE</span><span>NEXUS PETS</span><span>PVP</span><span>GEMINI NPC</span>
+        </div>
+      </nav>
+      <div class="hero-wrap">
+        <div class="hero-copy">
+          <span class="eyebrow">2D ONLINE CYBER-FANTASY RPG</span>
+          <h1>PUREFXAI RPG<br><em>NEXUS BEASTS</em></h1>
+          <p>โลกออนไลน์ 2D สำหรับเก็บเลเวล ฟาร์มมอน จับสัตว์เลี้ยง จัดทีม PVP และคุยกับ NPC AI ด้วย Gemini Live ทั้งเสียงและข้อความ</p>
+          <div class="hero-actions">
+            <button class="primary-cta" id="enterGame" type="button">เข้าสู่เกมตอนนี้</button>
+            <a class="secondary-cta" href="#features">ดูระบบเกม</a>
+          </div>
+          <div class="creator-lite" aria-label="Create character quick options">
+            <strong>สร้างตัวละคร</strong>
+            <label>ชื่อ <input id="heroNameInput" maxlength="18" placeholder="PURE HERO"></label>
+            <label>สาย
+              <select id="heroClassInput">
+                <option>Nexus Blade</option>
+                <option>Beast Tamer</option>
+                <option>Gemini Oracle</option>
+                <option>Void Ranger</option>
+                <option>Solar Knight</option>
+                <option>Moon Dancer</option>
+                <option>Storm Alchemist</option>
+                <option>Crimson Monk</option>
+              </select>
+            </label>
+            <label>ตัวละคร
+              <select id="heroGenderInput">
+                <option value="female">หญิง — Astra</option>
+                <option value="male">ชาย — Nova</option>
+                <option value="androgynous">นอน-ไบนารี — Rune</option>
+              </select>
+            </label>
+            <div class="color-picks" id="heroColorInput">
+              <button type="button" data-color="0xffffff" class="active"></button>
+              <button type="button" data-color="0xbcff35"></button>
+              <button type="button" data-color="0x61e9ff"></button>
+              <button type="button" data-color="0xff4f93"></button>
+              <button type="button" data-color="0xb985ff"></button>
+            </div>
+          </div>
+          <div class="stat-row">
+            <div><strong>20</strong><span>มอนสเตอร์เกิดสด</span></div>
+            <div><strong>3</strong><span>ช่องทีมสัตว์เลี้ยง</span></div>
+            <div><strong>120m</strong><span>Auto Farm / วัน</span></div>
+          </div>
+        </div>
+        <div class="hero-card">
+          <img src="/assets/purefxai-rpg-key-art.png" alt="PUREFXAI RPG Nexus Beasts key art">
+          <div class="live-card">
+            <small>SERVER STATUS</small>
+            <strong><i></i><span id="landingOnline">Connecting…</span></strong>
+          </div>
+        </div>
+      </div>
+      <div class="asset-showcase" aria-label="PUREFXAI RPG generated art assets">
+        <div>
+          <span class="eyebrow">GENERATED RASTER ART</span>
+          <h2>ตัวละคร มอนสเตอร์ ไอเท็ม และ UI ใช้ภาพเจนจริง</h2>
+          <p>asset ชุดนี้ถูกออกแบบเป็น original IP สำหรับ PUREFXAI RPG โดยตรง เพื่อให้เกมมีภาพลักษณ์ cyber-fantasy ที่สวยสมจริงกว่า placeholder หรือ SVG</p>
+        </div>
+        <img src="/assets/purefxai-rpg-asset-sheet.png" alt="Generated PUREFXAI RPG character monster item and UI asset sheet">
+      </div>
+      <div class="feature-strip" id="features">
+        <article><b>01</b><strong>Level & Auto Farm</strong><span>ฟาร์มมอนแบบ server-authoritative พร้อมจำกัดโควตาต่อผู้เล่นต่อวัน</span></article>
+        <article><b>02</b><strong>Capture Pets</strong><span>ลด HP แล้วจับ Nexus Beast เข้าทีม ใช้ช่วยต่อสู้และเพิ่มพลัง</span></article>
+        <article><b>03</b><strong>Online PVP</strong><span>เปิดโหมดประลองกับผู้เล่นคนอื่นแบบ opt-in เพื่อความแฟร์</span></article>
+        <article><b>04</b><strong>Gemini NPC</strong><span>ASTRA ตอบได้ทั้งแชทและเสียงผ่าน Gemini text + Live voice</span></article>
+      </div>
+      <div class="scroll-hint">เลื่อนดูระบบ หรือกดเข้าสู่เกม ✦</div>
+    </section>
     <section class="loading-screen" id="loadingScreen">
       <div class="brand-mark">P</div>
       <p>PUREFXAI RPG</p>
       <h1>NEXUS BEASTS</h1>
       <span id="loadingStatus">กำลังเชื่อมต่อ NEXUS…</span>
     </section>
-    <section class="game-shell" aria-label="PUREFXAI RPG online game">
+    <section class="game-shell" id="gameShell" aria-label="PUREFXAI RPG online game">
       <header class="topbar">
         <div class="brand"><i>P</i><span>PUREFXAI <b>RPG</b></span></div>
         <div class="online"><i></i><span id="onlineCount">0</span> ONLINE</div>
@@ -63,3 +140,4 @@
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
+
