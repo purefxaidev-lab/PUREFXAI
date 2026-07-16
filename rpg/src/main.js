@@ -1,12 +1,14 @@
 import Phaser from 'phaser';
+import { GoogleGenAI, Modality } from '@google/genai';
 import './style.css';
 
 const WORLD = { width: 2200, height: 1500 };
-const state = { id: null, players: {}, mobs: {}, pets: [], hp: 100, maxHp: 100, xp: 0, level: 1, pvp: false };
-const ui = Object.fromEntries(['loadingScreen','loadingStatus','onlineCount','playerName','level','hpBar','hpText','xpBar','xpText','petCount','petSlots','questProgress','pvpBadge','toast'].map(id => [id, document.getElementById(id)]));
+const state = { id: null, sessionToken: null, players: {}, mobs: {}, pets: [], hp: 100, maxHp: 100, xp: 0, level: 1, pvp: false, autoFarm: false };
+const ui = Object.fromEntries(['loadingScreen','loadingStatus','onlineCount','playerName','level','hpBar','hpText','xpBar','xpText','petCount','petSlots','questProgress','pvpBadge','farmBadge','toast','npcVoice','npcStatus','voiceButton','transcript','npcChatLog','npcChatForm','npcChatInput'].map(id => [id, document.getElementById(id)]));
 let socket;
 let gameScene;
 let toastTimer;
+let liveVoice;
 
 function showToast(message) {
   ui.toast.textContent = message;
@@ -27,6 +29,8 @@ function updateHud() {
   ui.questProgress.style.width = state.pets.length ? '100%' : '0%';
   ui.pvpBadge.textContent = state.pvp ? 'PVP ACTIVE' : 'PVP OFF';
   ui.pvpBadge.classList.toggle('active', state.pvp);
+  ui.farmBadge.textContent = state.autoFarm ? `AUTO FARM · ${state.farmMinutesLeft || 0}M` : 'AUTO FARM OFF';
+  ui.farmBadge.classList.toggle('active', state.autoFarm);
   ui.petSlots.innerHTML = [0,1,2].map(i => {
     const pet = state.pets[i];
     return pet ? `<button class="captured" style="--pet:${pet.color}"><i>${pet.glyph}</i><span>${pet.name} · LV.${pet.level}</span></button>` : '<button><i>+</i><span>EMPTY</span></button>';
@@ -47,6 +51,7 @@ function connect() {
     const msg = JSON.parse(event.data);
     if (msg.type === 'welcome') {
       state.id = msg.id;
+      state.sessionToken = msg.sessionToken;
       ui.playerName.textContent = msg.player.name;
     }
     if (msg.type === 'snapshot') {
@@ -54,7 +59,7 @@ function connect() {
       state.mobs = msg.mobs;
       ui.onlineCount.textContent = Object.keys(msg.players).length;
       const me = msg.players[state.id];
-      if (me) Object.assign(state, { hp: me.hp, maxHp: me.maxHp, xp: me.xp, level: me.level, pets: me.pets, pvp: me.pvp });
+      if (me) Object.assign(state, { hp: me.hp, maxHp: me.maxHp, xp: me.xp, level: me.level, pets: me.pets, pvp: me.pvp, autoFarm: me.autoFarm, farmMinutesLeft: me.farmMinutesLeft });
       updateHud();
       gameScene?.syncWorld(msg);
     }
@@ -72,6 +77,89 @@ function send(payload) {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
 }
 
+function bytesToBase64(bytes) {
+  let binary='';
+  for(let i=0;i<bytes.length;i+=0x8000) binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
+  return btoa(binary);
+}
+
+function base64ToBytes(value) {
+  const binary=atob(value);const bytes=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);return bytes;
+}
+
+class GeminiNpcVoice {
+  constructor(){this.session=null;this.inputContext=null;this.outputContext=null;this.source=null;this.stream=null;this.nextPlayTime=0;this.active=false;this.transcript='';}
+  async start(){
+    if(this.active)return this.stop();
+    ui.npcStatus.textContent='กำลังขอสิทธิ์ไมโครโฟน…';
+    const apiBase=import.meta.env.VITE_API_URL||`${location.protocol}//${location.hostname}:${import.meta.env.VITE_WS_PORT||8080}`;
+    const tokenResponse=await fetch(`${apiBase}/api/gemini/token`,{method:'POST',headers:{'content-type':'application/json','x-player-token':state.sessionToken},body:JSON.stringify({playerId:state.id})});
+    if(!tokenResponse.ok){const data=await tokenResponse.json().catch(()=>({}));throw new Error(data.error||'ขอ Gemini Live token ไม่สำเร็จ')}
+    const {token,model}=await tokenResponse.json();
+    this.outputContext=new AudioContext({sampleRate:24000});
+    const ai=new GoogleGenAI({apiKey:token,apiVersion:'v1alpha'});
+    const gameContext=`ผู้เล่นชื่อ ${ui.playerName.textContent} เลเวล ${state.level} HP ${state.hp}/${state.maxHp} มีสัตว์ในทีม ${state.pets.map(p=>p.name).join(', ')||'ยังไม่มี'} อยู่ในโลก Nexus City`;
+    this.session=await ai.live.connect({
+      model,
+      config:{
+        responseModalities:[Modality.AUDIO],
+        speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Kore'}}},
+        inputAudioTranscription:{},outputAudioTranscription:{},
+        systemInstruction:{parts:[{text:`คุณคือ ASTRA ไกด์สาวของเกม PUREFXAI RPG: Nexus Beasts พูดภาษาไทยเป็นหลัก น้ำเสียงสดใส ฉลาด กระชับ ไม่เกิน 2-3 ประโยคต่อครั้ง ช่วยเรื่องเควสต์ การจับสัตว์ ทีมสัตว์ และโลกในเกมเท่านั้น ห้ามอ้างว่าเป็นมนุษย์ ข้อมูลเกมปัจจุบัน: ${gameContext}`}]}
+      },
+      callbacks:{
+        onopen:()=>this.captureMicrophone(),
+        onmessage:message=>this.handleMessage(message),
+        onerror:error=>this.fail(error?.message||'Gemini Live error'),
+        onclose:()=>this.stop(false)
+      }
+    });
+    this.active=true;ui.npcVoice.classList.add('live');ui.npcStatus.textContent='ASTRA กำลังฟัง · พูดได้เลย';
+  }
+  async captureMicrophone(){
+    this.stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    this.inputContext=new AudioContext({sampleRate:16000});
+    const source=this.inputContext.createMediaStreamSource(this.stream);const processor=this.inputContext.createScriptProcessor(2048,1,1);
+    processor.onaudioprocess=event=>{
+      if(!this.active||!this.session)return;const float=event.inputBuffer.getChannelData(0);const pcm=new Int16Array(float.length);
+      for(let i=0;i<float.length;i++)pcm[i]=Math.max(-32768,Math.min(32767,float[i]*32768));
+      this.session.sendRealtimeInput({audio:{data:bytesToBase64(new Uint8Array(pcm.buffer)),mimeType:'audio/pcm;rate=16000'}});
+    };
+    source.connect(processor);processor.connect(this.inputContext.destination);this.source=processor;
+  }
+  handleMessage(message){
+    const content=message.serverContent;
+    if(content?.interrupted)this.stopPlayback();
+    const inputText=content?.inputTranscription?.text;const outputText=content?.outputTranscription?.text;
+    if(inputText||outputText){this.transcript=(outputText||inputText).trim();ui.transcript.textContent=this.transcript;ui.transcript.classList.toggle('show',Boolean(this.transcript))}
+    const parts=content?.modelTurn?.parts||[];
+    for(const part of parts){const data=part.inlineData?.data;if(data)this.playPcm(data)}
+  }
+  playPcm(data){
+    const bytes=base64ToBytes(data);const view=new DataView(bytes.buffer);const samples=new Float32Array(bytes.length/2);
+    for(let i=0;i<samples.length;i++)samples[i]=view.getInt16(i*2,true)/32768;
+    const buffer=this.outputContext.createBuffer(1,samples.length,24000);buffer.copyToChannel(samples,0);const source=this.outputContext.createBufferSource();source.buffer=buffer;source.connect(this.outputContext.destination);
+    this.nextPlayTime=Math.max(this.nextPlayTime,this.outputContext.currentTime);source.start(this.nextPlayTime);this.nextPlayTime+=buffer.duration;ui.npcVoice.classList.add('speaking');source.onended=()=>{if(this.outputContext.currentTime>=this.nextPlayTime-.05)ui.npcVoice.classList.remove('speaking')};
+  }
+  stopPlayback(){this.nextPlayTime=this.outputContext?.currentTime||0;ui.npcVoice.classList.remove('speaking')}
+  fail(message){showToast(message);ui.npcStatus.textContent='เชื่อมต่อเสียงไม่สำเร็จ';this.stop(false)}
+  stop(close=true){this.active=false;this.stream?.getTracks().forEach(track=>track.stop());this.source?.disconnect();this.inputContext?.close();if(close)this.session?.close();this.session=null;ui.npcVoice.classList.remove('live','speaking');ui.npcStatus.textContent='เข้าใกล้แล้วกดเพื่อสนทนาด้วยเสียง';}
+}
+
+ui.voiceButton.addEventListener('click',async()=>{try{liveVoice||=new GeminiNpcVoice();await liveVoice.start()}catch(error){liveVoice?.fail(error.message)}});
+
+function addChatMessage(role,text){const p=document.createElement('p');p.className=role;p.textContent=text;ui.npcChatLog.appendChild(p);ui.npcChatLog.scrollTop=ui.npcChatLog.scrollHeight}
+ui.npcChatForm.addEventListener('submit',async event=>{
+  event.preventDefault();const message=ui.npcChatInput.value.trim();if(!message||!state.id)return;
+  addChatMessage('user',message);ui.npcChatInput.value='';ui.npcChatInput.disabled=true;ui.npcStatus.textContent='ASTRA กำลังคิดด้วย Gemini 3.5 Flash…';
+  try{
+    const apiBase=import.meta.env.VITE_API_URL||`${location.protocol}//${location.hostname}:${import.meta.env.VITE_WS_PORT||8080}`;
+    const response=await fetch(`${apiBase}/api/npc/chat`,{method:'POST',headers:{'content-type':'application/json','x-player-token':state.sessionToken},body:JSON.stringify({playerId:state.id,message,context:{level:state.level,hp:state.hp,maxHp:state.maxHp,pets:state.pets.map(p=>p.name),pvp:state.pvp}})});
+    const data=await response.json();if(!response.ok)throw new Error(data.error||'NPC chat failed');addChatMessage('astra',data.reply);
+  }catch(error){addChatMessage('astra',`การเชื่อมต่อสะดุด: ${error.message}`)}finally{ui.npcChatInput.disabled=false;ui.npcChatInput.focus();ui.npcStatus.textContent='พิมพ์หรือกดไมค์เพื่อคุยกับฉัน'}
+});
+
 class NexusScene extends Phaser.Scene {
   constructor(){ super('Nexus'); this.entities = new Map(); this.lastMove = 0; }
   create() {
@@ -80,10 +168,11 @@ class NexusScene extends Phaser.Scene {
     this.cameras.main.setBounds(0,0,WORLD.width,WORLD.height).setZoom(1);
     this.physics.world.setBounds(0,0,WORLD.width,WORLD.height);
     this.drawWorld();
-    this.keys = this.input.keyboard.addKeys('W,A,S,D,SPACE,E,P');
+    this.keys = this.input.keyboard.addKeys('W,A,S,D,SPACE,E,P,F');
     this.input.keyboard.on('keydown-SPACE', () => send({type:'attack'}));
     this.input.keyboard.on('keydown-E', () => send({type:'capture'}));
     this.input.keyboard.on('keydown-P', () => send({type:'togglePvp'}));
+    this.input.keyboard.on('keydown-F', () => send({type:'toggleAutoFarm'}));
   }
   createTextures() {
     const g = this.make.graphics({x:0,y:0,add:false});
