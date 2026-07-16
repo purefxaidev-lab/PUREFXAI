@@ -11,10 +11,18 @@
   const voiceLabel = document.querySelector('#voiceLabel');
   const status = document.querySelector('#aiStatus');
   const pupils = root.querySelector('.pupils');
+  const companionName = document.querySelector('#companionName');
+  const characterButtons = [...document.querySelectorAll('[data-pick]')];
   const endpoint = window.PUREFXAI_CONFIG?.sessionEndpoint?.trim();
 
   let pc, dc, micStream, audioContext, analyser, speakingFrame;
   let transcriptNode = null;
+  const characters = {
+    astra: { name: 'ASTRA', greeting: 'Astra สาวไซเบอร์ผู้มั่นใจและฉลาดเฉียบคม' },
+    sakura: { name: 'SAKURA', greeting: 'Sakura สาวแสนอบอุ่น ร่าเริง และเป็นกันเอง' },
+    luna: { name: 'LUNA', greeting: 'Luna สาวลึกลับ สุขุม และเก่งด้านเทคโนโลยี' },
+    hikari: { name: 'HIKARI', greeting: 'Hikari สาวสดใส หรูหรา และเต็มไปด้วยพลังบวก' },
+  };
 
   const setOpen = (open) => {
     root.classList.toggle('open', open);
@@ -40,6 +48,22 @@
     messages.scrollTop = messages.scrollHeight;
     return node;
   }
+
+  function selectCharacter(id, announce = true) {
+    const character = characters[id] || characters.astra;
+    root.dataset.character = id;
+    companionName.textContent = character.name;
+    characterButtons.forEach(button => button.classList.toggle('active', button.dataset.pick === id));
+    try { localStorage.setItem('purefxai-character', id); } catch {}
+    if (announce) addMessage(`เปลี่ยนเป็น ${character.name} แล้วค่ะ — ${character.greeting} ✨`, 'system');
+    if (dc?.readyState === 'open') {
+      dc.send(JSON.stringify({ type: 'session.update', session: { type: 'realtime', instructions: `You are ${character.name}, ${character.greeting}. You are a female anime AI assistant for PUREFXAI. Reply naturally and concisely in Thai unless the user speaks another language.` } }));
+    }
+  }
+  characterButtons.forEach(button => button.addEventListener('click', () => selectCharacter(button.dataset.pick)));
+  let savedCharacter = 'astra';
+  try { savedCharacter = localStorage.getItem('purefxai-character') || 'astra'; } catch {}
+  selectCharacter(savedCharacter, false);
 
   function demoReply(text) {
     const t = text.toLowerCase();
