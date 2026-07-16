@@ -6,6 +6,7 @@ Production-ready one-page brand website for PUREFXAI — an independent AI studi
 
 - Responsive cinematic interface
 - Canvas particle field and interactive AI core
+- Four selectable animated anime assistants with saved preferences
 - Scroll reveal, counters and magnetic interactions
 - Accessible semantic structure and reduced-motion support
 - Zero build step and zero JavaScript dependencies
