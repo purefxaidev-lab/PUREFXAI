@@ -1,0 +1,20 @@
+{
+  "name": "purefxai-rpg",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "server": "node server/server.js",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "phaser": "^3.90.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "vite": "^7.0.4"
+  }
+}
