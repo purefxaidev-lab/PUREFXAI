@@ -1,0 +1,12 @@
+{
+  "name": "purefxai-gemini-live-worker",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@google/genai": "2.12.0",
+    "jose": "6.1.3"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
