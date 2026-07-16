@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#070b16" />
+  <meta name="description" content="PUREFXAI RPG — online cyber-fantasy creature adventure." />
+  <title>PUREFXAI RPG — Nexus Beasts</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Noto+Sans+Thai:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <main id="app">
+    <section class="loading-screen" id="loadingScreen">
+      <div class="brand-mark">P</div>
+      <p>PUREFXAI RPG</p>
+      <h1>NEXUS BEASTS</h1>
+      <span id="loadingStatus">กำลังเชื่อมต่อ NEXUS…</span>
+    </section>
+    <section class="game-shell" aria-label="PUREFXAI RPG online game">
+      <header class="topbar">
+        <div class="brand"><i>P</i><span>PUREFXAI <b>RPG</b></span></div>
+        <div class="online"><i></i><span id="onlineCount">0</span> ONLINE</div>
+      </header>
+      <div id="game"></div>
+      <aside class="hud hud-player">
+        <div class="avatar">P</div>
+        <div class="player-info">
+          <div><b id="playerName">PURE-001</b><span>LV.<strong id="level">1</strong></span></div>
+          <label>HP <i><span id="hpBar"></span></i><small id="hpText">100 / 100</small></label>
+          <label>EXP <i class="exp"><span id="xpBar"></span></i><small id="xpText">0 / 100</small></label>
+        </div>
+      </aside>
+      <aside class="hud pet-team">
+        <div class="hud-title"><span>NEXUS TEAM</span><small id="petCount">0 / 3</small></div>
+        <div class="pet-slots" id="petSlots">
+          <button><i>+</i><span>EMPTY</span></button><button><i>+</i><span>EMPTY</span></button><button><i>+</i><span>EMPTY</span></button>
+        </div>
+      </aside>
+      <aside class="quest-panel">
+        <small>ACTIVE MISSION</small>
+        <strong>First Connection</strong>
+        <p>จับ Nexus Beast ตัวแรก</p>
+        <div><span id="questProgress"></span></div>
+      </aside>
+      <div class="controls">
+        <span><kbd>WASD</kbd> เคลื่อนที่</span><span><kbd>SPACE</kbd> โจมตี</span><span><kbd>E</kbd> จับสัตว์</span><span><kbd>P</kbd> PVP</span>
+      </div>
+      <div class="pvp-badge" id="pvpBadge">PVP OFF</div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </section>
+  </main>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
