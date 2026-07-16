@@ -45,9 +45,18 @@
         <div><span id="questProgress"></span></div>
       </aside>
       <div class="controls">
-        <span><kbd>WASD</kbd> เคลื่อนที่</span><span><kbd>SPACE</kbd> โจมตี</span><span><kbd>E</kbd> จับสัตว์</span><span><kbd>P</kbd> PVP</span>
+        <span><kbd>WASD</kbd> เคลื่อนที่</span><span><kbd>SPACE</kbd> โจมตี</span><span><kbd>E</kbd> จับสัตว์</span><span><kbd>P</kbd> PVP</span><span><kbd>F</kbd> AUTO FARM</span>
       </div>
       <div class="pvp-badge" id="pvpBadge">PVP OFF</div>
+      <div class="farm-badge" id="farmBadge">AUTO FARM OFF</div>
+      <aside class="npc-voice" id="npcVoice">
+        <div class="npc-avatar"><span></span><i></i></div>
+        <div class="npc-copy"><small>GEMINI LIVE NPC</small><strong>ASTRA · Nexus Guide</strong><p id="npcStatus">เข้าใกล้แล้วกดเพื่อสนทนาด้วยเสียง</p></div>
+        <button id="voiceButton" type="button" aria-label="เริ่มคุยด้วยเสียงกับ ASTRA"><span></span></button>
+        <div class="npc-chat-log" id="npcChatLog"><p class="astra">สวัสดีค่ะ ฉัน ASTRA จะถามด้วยเสียงหรือพิมพ์มาก็ได้ ✦</p></div>
+        <form class="npc-chat-form" id="npcChatForm"><input id="npcChatInput" maxlength="240" autocomplete="off" placeholder="พิมพ์คุยกับ ASTRA…"><button type="submit" aria-label="ส่งข้อความ">↑</button></form>
+      </aside>
+      <div class="transcript" id="transcript" aria-live="polite"></div>
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
     </section>
   </main>
