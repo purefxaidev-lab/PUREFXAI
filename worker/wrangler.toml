@@ -1,6 +1,7 @@
-name = "purefxai-live"
+name = "purefxai-gemini-live"
 main = "worker.js"
 compatibility_date = "2026-07-16"
 
 # Add the key securely after deployment:
-# npx wrangler secret put OPENAI_API_KEY
+# npx wrangler secret put GEMINI_API_KEY
+# npx wrangler secret put FIREBASE_PROJECT_ID
