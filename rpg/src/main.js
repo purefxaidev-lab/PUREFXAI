@@ -256,7 +256,8 @@ class NexusScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-F', () => send({type:'toggleAutoFarm'}));
   }
   createTextures() {
-    const sheet = this.textures.get('assetSheet').getSourceImage();
+    const sheet = this.textures.get('assetSheet')?.getSourceImage?.();
+    if (!sheet) { this.createFallbackTextures(); return; }
     // Coordinates for the generated 2048px raster atlas: heroes upper-right, beasts center-left.
     this.textures.addCanvas('hero', this.cropAsset(sheet, 1010, 25, 360, 620, 160, 220));
     this.textures.addCanvas('heroFemale', this.cropAsset(sheet, 1365, 25, 320, 620, 160, 220));
@@ -264,6 +265,18 @@ class NexusScene extends Phaser.Scene {
     this.textures.addCanvas('beastFrost', this.cropAsset(sheet, 270, 1015, 250, 280, 132, 120));
     this.textures.addCanvas('beastNyx', this.cropAsset(sheet, 520, 1015, 250, 280, 120, 112));
     this.textures.addCanvas('beastMoss', this.cropAsset(sheet, 15, 1300, 250, 280, 120, 120));
+  }
+  createFallbackTextures() {
+    // Browser-safe fallback keeps the alpha playable when a static host omits the PNG atlas.
+    const make = (key, color, glyph) => {
+      const c=document.createElement('canvas'); c.width=160; c.height=200; const x=c.getContext('2d');
+      const g=x.createRadialGradient(80,65,8,80,100,90); g.addColorStop(0,'#fff'); g.addColorStop(.16,color); g.addColorStop(1,'#07101f');
+      x.fillStyle=g; x.beginPath(); x.arc(80,82,56,0,Math.PI*2); x.fill(); x.strokeStyle=color; x.lineWidth=5; x.stroke();
+      x.fillStyle='#fff'; x.font='bold 72px Inter, sans-serif'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(glyph,80,88);
+      this.textures.addCanvas(key,c);
+    };
+    make('hero','#62e9ff','P'); make('heroFemale','#ff62c8','✦');
+    make('beastVoltbit','#bcff35','⚡'); make('beastFrost','#61e9ff','❄'); make('beastNyx','#c38cff','☾'); make('beastMoss','#8fff68','◆');
   }
   cropAsset(sheet, sx, sy, sw, sh, dw, dh) {
     const canvas = document.createElement('canvas');
