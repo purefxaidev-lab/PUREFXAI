@@ -2,10 +2,50 @@ import express from 'express';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
+import { GoogleGenAI } from '@google/genai';
 
 const PORT = Number(process.env.PORT || 8080);
 const app = express();
+app.use(express.json({limit:'16kb'}));
+const allowedOrigins=new Set((process.env.ALLOWED_ORIGINS||'http://localhost:5173').split(',').map(x=>x.trim()).filter(Boolean));
+app.use((req,res,next)=>{const origin=req.headers.origin;if(origin&&allowedOrigins.has(origin))res.setHeader('access-control-allow-origin',origin);res.setHeader('vary','Origin');res.setHeader('access-control-allow-headers','content-type');if(req.method==='OPTIONS')return res.sendStatus(204);next()});
 app.get('/health',(_,res)=>res.json({ok:true,game:'PUREFXAI RPG',online:players.size}));
+const tokenRate=new Map();
+const dailyUsage=new Map();
+const dayKey=()=>new Date().toISOString().slice(0,10);
+function usageFor(player){const current=dailyUsage.get(player.name);if(!current||current.day!==dayKey()){const fresh={day:dayKey(),textTokens:0,voiceMinutes:0,farmMs:0};dailyUsage.set(player.name,fresh);return fresh}return current}
+function authenticatedPlayer(req){const p=players.get(String(req.body?.playerId||''));return p&&req.headers['x-player-token']===p.sessionToken?p:null}
+app.post('/api/gemini/token',async(req,res)=>{
+  const origin=req.headers.origin;
+  if(origin&&!allowedOrigins.has(origin))return res.status(403).json({error:'Origin not allowed'});
+  if(!process.env.GEMINI_API_KEY)return res.status(503).json({error:'Gemini Live ยังไม่ได้ตั้งค่า Secret บนเซิร์ฟเวอร์'});
+  if(!authenticatedPlayer(req))return res.status(401).json({error:'Player session ไม่ถูกต้อง'});
+  const player=authenticatedPlayer(req);const usage=usageFor(player);const voiceLimit=Number(process.env.DAILY_VOICE_MINUTES||30);if(usage.voiceMinutes+15>voiceLimit)return res.status(429).json({error:`โควตาเสียงวันนี้ครบ ${voiceLimit} นาทีแล้ว`});usage.voiceMinutes+=15;
+  const key=req.ip||'unknown';const last=tokenRate.get(key)||0;if(Date.now()-last<15000)return res.status(429).json({error:'กรุณารอ 15 วินาทีก่อนเริ่มเสียงใหม่'});tokenRate.set(key,Date.now());
+  try{
+    const model=process.env.GEMINI_LIVE_MODEL||'gemini-3.1-flash-live-preview';
+    const client=new GoogleGenAI({apiKey:process.env.GEMINI_API_KEY,httpOptions:{apiVersion:'v1alpha'}});
+    const token=await client.authTokens.create({config:{uses:1,expireTime:new Date(Date.now()+30*60*1000).toISOString(),newSessionExpireTime:new Date(Date.now()+60*1000),liveConnectConstraints:{model,config:{responseModalities:['AUDIO'],sessionResumption:{}}},httpOptions:{apiVersion:'v1alpha'}}});
+    res.json({token:token.name,model,expiresIn:60});
+  }catch(error){console.error('Gemini token error:',error.message);res.status(502).json({error:'สร้าง Gemini Live session ไม่สำเร็จ'})}
+});
+const npcHistory=new Map();
+const chatRate=new Map();
+app.post('/api/npc/chat',async(req,res)=>{
+  const player=authenticatedPlayer(req);if(!player)return res.status(401).json({error:'Player session ไม่ถูกต้อง'});
+  if(!process.env.GEMINI_API_KEY)return res.status(503).json({error:'Gemini API ยังไม่ได้ตั้งค่า Secret บนเซิร์ฟเวอร์'});
+  const message=String(req.body?.message||'').trim().slice(0,240);if(!message)return res.status(400).json({error:'ข้อความว่าง'});
+  const usage=usageFor(player);const textLimit=Number(process.env.DAILY_TEXT_TOKEN_LIMIT||20000);if(usage.textTokens>=textLimit)return res.status(429).json({error:`โควตา Gemini วันนี้ครบ ${textLimit.toLocaleString()} tokens แล้ว`});
+  const last=chatRate.get(player.id)||0;if(Date.now()-last<900)return res.status(429).json({error:'ส่งข้อความเร็วเกินไป'});chatRate.set(player.id,Date.now());
+  const history=npcHistory.get(player.id)||[];
+  const context=`ชื่อ ${player.name}, เลเวล ${player.level}, HP ${player.hp}/${player.maxHp}, สัตว์ในทีม ${player.pets.map(p=>p.name).join(', ')||'ยังไม่มี'}, PVP ${player.pvp?'เปิด':'ปิด'}`;
+  try{
+    const client=new GoogleGenAI({apiKey:process.env.GEMINI_API_KEY});const model=process.env.GEMINI_TEXT_MODEL||'gemini-3.5-flash';
+    const contents=[...history,{role:'user',parts:[{text:message}]}];
+    const response=await client.models.generateContent({model,contents,config:{temperature:.8,maxOutputTokens:220,systemInstruction:`คุณคือ ASTRA ไกด์สาวในเกม PUREFXAI RPG: Nexus Beasts ตอบภาษาไทยเป็นหลัก สดใส ฉลาด กระชับ ไม่เกิน 3 ประโยค ช่วยเรื่องโลกในเกม เควสต์ การต่อสู้ การจับ Nexus Beast และทีมสัตว์ ห้ามสร้างรางวัลหรือแก้ข้อมูลเกมเอง หากผู้เล่นขอการกระทำให้บอกขั้นตอนที่ระบบรองรับ สถานะล่าสุด: ${context}`}});
+    const used=Number(response.usageMetadata?.totalTokenCount||message.length/3+String(response.text||'').length/3);usage.textTokens=Math.min(textLimit,usage.textTokens+Math.ceil(used));const reply=String(response.text||'ฉันยังตอบไม่ได้ในตอนนี้ค่ะ').trim();history.push({role:'user',parts:[{text:message}]},{role:'model',parts:[{text:reply}]});npcHistory.set(player.id,history.slice(-10));res.json({reply,model,usage:{used:Math.ceil(used),remaining:Math.max(0,textLimit-usage.textTokens)}});
+  }catch(error){console.error('Gemini chat error:',error.message);res.status(502).json({error:'ASTRA เชื่อมต่อ Gemini ไม่สำเร็จ'})}
+});
 const server=createServer(app);
 const wss=new WebSocketServer({server});
 const players=new Map();
@@ -26,7 +66,7 @@ function spawnMob(index){
 }
 for(let i=0;i<20;i++) spawnMob(i);
 
-function publicPlayer(p){return {id:p.id,name:p.name,x:Math.round(p.x),y:Math.round(p.y),hp:p.hp,maxHp:p.maxHp,xp:p.xp,level:p.level,pets:p.pets,pvp:p.pvp}}
+function publicPlayer(p){const usage=usageFor(p),limit=Number(process.env.DAILY_AUTO_FARM_MINUTES||120);return {id:p.id,name:p.name,x:Math.round(p.x),y:Math.round(p.y),hp:p.hp,maxHp:p.maxHp,xp:p.xp,level:p.level,pets:p.pets,pvp:p.pvp,autoFarm:p.autoFarm,farmMinutesLeft:Math.max(0,Math.ceil(limit-usage.farmMs/60000))}}
 function snapshot(){return {type:'snapshot',players:Object.fromEntries([...players].map(([id,p])=>[id,publicPlayer(p)])),mobs:Object.fromEntries([...mobs].map(([id,m])=>[id,{...m,hp:Math.round(m.hp)}]))}}
 function send(ws,data){if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(data))}
 function event(ws,message){send(ws,{type:'event',message})}
@@ -44,8 +84,8 @@ wss.on('connection',ws=>{
     if(msg.type==='join'&&!playerId){
       playerId=randomUUID();
       const safeName=String(msg.name||'PURE-HERO').replace(/[^\p{L}\p{N}_-]/gu,'').slice(0,18)||'PURE-HERO';
-      const p={id:playerId,name:safeName,x:420+Math.random()*160,y:380+Math.random()*120,hp:100,maxHp:100,xp:0,level:1,pets:[],pvp:false,lastAttack:0,lastCapture:0};
-      players.set(playerId,p);sockets.set(playerId,ws);send(ws,{type:'welcome',id:playerId,player:publicPlayer(p)});event(ws,'ยินดีต้อนรับสู่ NEXUS');return;
+      const p={id:playerId,sessionToken:randomUUID(),name:safeName,x:420+Math.random()*160,y:380+Math.random()*120,hp:100,maxHp:100,xp:0,level:1,pets:[],pvp:false,autoFarm:false,lastAttack:0,lastCapture:0,nextFarmAttack:0};
+      players.set(playerId,p);sockets.set(playerId,ws);send(ws,{type:'welcome',id:playerId,sessionToken:p.sessionToken,player:publicPlayer(p)});event(ws,'ยินดีต้อนรับสู่ NEXUS');return;
     }
     const p=players.get(playerId);if(!p)return;
     if(msg.type==='move'){
@@ -53,6 +93,10 @@ wss.on('connection',ws=>{
       p.x=clamp(p.x+(Number(msg.x)||0)/mag*12,40,2160);p.y=clamp(p.y+(Number(msg.y)||0)/mag*12,80,1460);
     }
     if(msg.type==='togglePvp'){p.pvp=!p.pvp;event(ws,p.pvp?'เปิดโหมด PVP แล้ว':'ปิดโหมด PVP แล้ว')}
+    if(msg.type==='toggleAutoFarm'){
+      const usage=usageFor(p),limit=Number(process.env.DAILY_AUTO_FARM_MINUTES||120)*60000;if(usage.farmMs>=limit){p.autoFarm=false;event(ws,'โควตา Auto Farm วันนี้หมดแล้ว');return}
+      p.autoFarm=!p.autoFarm;if(p.autoFarm)p.pvp=false;event(ws,p.autoFarm?'เริ่ม Auto Farm · ระบบจะไม่จับสัตว์และไม่ PVP':'หยุด Auto Farm แล้ว');
+    }
     if(msg.type==='attack'&&Date.now()-p.lastAttack>550){
       p.lastAttack=Date.now();
       const rival=p.pvp?nearest(p,[...players.values()].filter(x=>x.id!==p.id&&x.pvp&&x.hp>0),125):null;
@@ -78,10 +122,17 @@ wss.on('connection',ws=>{
       }else event(ws,`${mob.name} หลุดออกจาก Nexus Core`);
     }
   });
-  ws.on('close',()=>{if(playerId){players.delete(playerId);sockets.delete(playerId)}});
+  ws.on('close',()=>{if(playerId){players.delete(playerId);sockets.delete(playerId);npcHistory.delete(playerId);chatRate.delete(playerId)}});
 });
 
 setInterval(()=>{
+  const now=Date.now();
+  for(const p of players.values())if(p.autoFarm){
+    const usage=usageFor(p),limit=Number(process.env.DAILY_AUTO_FARM_MINUTES||120)*60000;usage.farmMs+=1000/15;if(usage.farmMs>=limit){p.autoFarm=false;event(sockets.get(p.id),'Auto Farm ครบโควตาวันนี้แล้ว');continue}
+    const mob=nearest(p,[...mobs.values()].filter(x=>x.hp>0),500);if(!mob)continue;const d=distance(p,mob);
+    if(d>105){p.x=clamp(p.x+(mob.x-p.x)/d*3.2,40,2160);p.y=clamp(p.y+(mob.y-p.y)/d*3.2,80,1460)}
+    else if(now>=p.nextFarmAttack){p.nextFarmAttack=now+850;mob.hp=Math.max(0,mob.hp-(10+p.level*2+(p.pets[0]?.level||0)));if(!mob.hp){p.xp+=20+mob.level*8;event(sockets.get(p.id),`Auto Farm กำจัด ${mob.name} +${20+mob.level*8} EXP`);levelUp(p);mobs.delete(mob.id);setTimeout(()=>spawnMob(Math.floor(Math.random()*creatures.length)),2800)}}
+  }
   for(const mob of mobs.values()){
     mob.x=clamp(mob.x+mob.vx,80,2100);mob.y=clamp(mob.y+mob.vy,100,1400);
     if(Math.random()<.025){mob.vx=(Math.random()-.5)*18;mob.vy=(Math.random()-.5)*18}
