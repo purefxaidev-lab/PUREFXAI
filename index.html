@@ -94,13 +94,13 @@
     </section>
   </main>
 
-  <aside class="ai-companion" id="aiCompanion" aria-label="PURE AI ผู้ช่วยอัจฉริยะ">
+  <aside class="ai-companion" id="aiCompanion" data-character="astra" aria-label="PURE AI ผู้ช่วยอัจฉริยะ">
     <button class="companion-stage" id="companionToggle" aria-label="เปิดแชตกับ PURE AI" aria-expanded="false">
       <span class="companion-halo"></span>
       <svg class="anime-girl" viewBox="0 0 260 360" role="img" aria-label="สาวการ์ตูน PURE AI">
         <defs>
-          <linearGradient id="hair" x1="0" x2="1"><stop stop-color="#171324"/><stop offset=".55" stop-color="#322353"/><stop offset="1" stop-color="#11101b"/></linearGradient>
-          <linearGradient id="jacket" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#eee9ff"/><stop offset="1" stop-color="#7051b7"/></linearGradient>
+          <linearGradient id="hair" x1="0" x2="1"><stop class="hair-a" stop-color="#171324"/><stop class="hair-b" offset=".55" stop-color="#322353"/><stop class="hair-c" offset="1" stop-color="#11101b"/></linearGradient>
+          <linearGradient id="jacket" x1="0" y1="0" x2="1" y2="1"><stop class="outfit-a" stop-color="#eee9ff"/><stop class="outfit-b" offset="1" stop-color="#7051b7"/></linearGradient>
           <radialGradient id="skin"><stop stop-color="#fff2eb"/><stop offset="1" stop-color="#f1c9c4"/></radialGradient>
           <filter id="glow"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
         </defs>
@@ -113,7 +113,7 @@
           <path d="M69 125Q59 176 79 209Q53 197 49 166Q48 139 69 125M191 122Q208 165 181 210Q208 196 212 163Q211 136 191 122" fill="url(#hair)"/>
           <g class="eyes">
             <ellipse cx="103" cy="150" rx="19" ry="15" fill="#fff"/><ellipse cx="158" cy="150" rx="19" ry="15" fill="#fff"/>
-            <g class="pupils"><ellipse cx="105" cy="151" rx="10" ry="12" fill="#7d61db"/><ellipse cx="160" cy="151" rx="10" ry="12" fill="#7d61db"/><circle cx="108" cy="147" r="3" fill="#fff"/><circle cx="163" cy="147" r="3" fill="#fff"/></g>
+            <g class="pupils"><ellipse class="iris" cx="105" cy="151" rx="10" ry="12" fill="#7d61db"/><ellipse class="iris" cx="160" cy="151" rx="10" ry="12" fill="#7d61db"/><circle cx="108" cy="147" r="3" fill="#fff"/><circle cx="163" cy="147" r="3" fill="#fff"/></g>
             <path d="M84 144q19-18 38 0M139 144q20-18 39 0" fill="none" stroke="#2b203b" stroke-width="4" stroke-linecap="round"/>
           </g>
           <path d="M95 127q10-6 20 0M145 127q11-6 21 0" stroke="#4d345e" stroke-width="4" stroke-linecap="round" fill="none"/>
@@ -126,7 +126,7 @@
           <g class="sparkles" fill="#7eeeff"><circle cx="46" cy="88" r="3"/><circle cx="216" cy="110" r="2"/><circle cx="225" cy="245" r="3"/></g>
         </g>
       </svg>
-      <span class="companion-bubble"><b>PURE AI</b><small>แตะเพื่อคุยกับฉัน</small></span>
+      <span class="companion-bubble"><b id="companionName">ASTRA</b><small>แตะเพื่อคุยกับฉัน</small></span>
       <span class="live-indicator"><i></i> LIVE</span>
     </button>
 
@@ -135,6 +135,12 @@
         <div class="mini-avatar">P</div><div><strong>PURE AI</strong><span id="aiStatus">พร้อมช่วยคุณ</span></div>
         <button id="aiClose" aria-label="ปิดหน้าต่างแชต">×</button>
       </header>
+      <div class="character-picker" aria-label="เลือกตัวละครอนิเมะ">
+        <button class="character-option active" data-pick="astra" aria-label="เลือก Astra สาวไซเบอร์"><span class="character-thumb astra-thumb"><i></i></span><small>ASTRA</small></button>
+        <button class="character-option" data-pick="sakura" aria-label="เลือก Sakura สาวซากุระ"><span class="character-thumb sakura-thumb"><i></i></span><small>SAKURA</small></button>
+        <button class="character-option" data-pick="luna" aria-label="เลือก Luna สาวลูน่า"><span class="character-thumb luna-thumb"><i></i></span><small>LUNA</small></button>
+        <button class="character-option" data-pick="hikari" aria-label="เลือก Hikari สาวฮิคาริ"><span class="character-thumb hikari-thumb"><i></i></span><small>HIKARI</small></button>
+      </div>
       <div class="ai-messages" id="aiMessages" aria-live="polite">
         <div class="ai-message bot">สวัสดีค่ะ ฉันคือ PURE AI ✨ ถามเรื่อง AI, ผลงาน PUREFXAI หรือกดปุ่มไมค์เพื่อคุยสดกับฉันได้เลยค่ะ</div>
       </div>
