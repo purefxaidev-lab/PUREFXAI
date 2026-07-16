@@ -241,7 +241,7 @@ ui.npcChatForm.addEventListener('submit',async event=>{
 class NexusScene extends Phaser.Scene {
   constructor(){ super('Nexus'); this.entities = new Map(); this.lastMove = 0; }
   preload() {
-    this.load.image('assetSheet', '/assets/purefxai-rpg-asset-sheet.png');
+    this.load.image('assetSheet', './assets/purefxai-rpg-asset-sheet.png');
   }
   create() {
     gameScene = this;
@@ -257,11 +257,13 @@ class NexusScene extends Phaser.Scene {
   }
   createTextures() {
     const sheet = this.textures.get('assetSheet').getSourceImage();
-    this.textures.addCanvas('hero', this.cropAsset(sheet, 30, 35, 455, 705, 160, 220));
-    this.textures.addCanvas('beastVoltbit', this.cropAsset(sheet, 510, 95, 240, 310, 112, 122));
-    this.textures.addCanvas('beastFrost', this.cropAsset(sheet, 760, 95, 300, 310, 132, 120));
-    this.textures.addCanvas('beastNyx', this.cropAsset(sheet, 500, 430, 250, 280, 120, 112));
-    this.textures.addCanvas('beastMoss', this.cropAsset(sheet, 760, 420, 260, 300, 120, 120));
+    // Coordinates for the generated 2048px raster atlas: heroes upper-right, beasts center-left.
+    this.textures.addCanvas('hero', this.cropAsset(sheet, 1010, 25, 360, 620, 160, 220));
+    this.textures.addCanvas('heroFemale', this.cropAsset(sheet, 1365, 25, 320, 620, 160, 220));
+    this.textures.addCanvas('beastVoltbit', this.cropAsset(sheet, 15, 1015, 250, 280, 112, 122));
+    this.textures.addCanvas('beastFrost', this.cropAsset(sheet, 270, 1015, 250, 280, 132, 120));
+    this.textures.addCanvas('beastNyx', this.cropAsset(sheet, 520, 1015, 250, 280, 120, 112));
+    this.textures.addCanvas('beastMoss', this.cropAsset(sheet, 15, 1300, 250, 280, 120, 120));
   }
   cropAsset(sheet, sx, sy, sw, sh, dw, dh) {
     const canvas = document.createElement('canvas');
@@ -296,7 +298,8 @@ class NexusScene extends Phaser.Scene {
       alive.add(`p-${p.id}`);
       let entity = this.entities.get(`p-${p.id}`);
       if(!entity){
-        const sprite=this.add.image(p.x,p.y,'hero').setScale(p.id===state.id ? .9 : .82).setTint(p.id===state.id?(p.color||state.heroColor||0xffffff):0x98b7ff);
+        const heroTexture = p.id===state.id && state.heroGender==='female' ? 'heroFemale' : 'hero';
+        const sprite=this.add.image(p.x,p.y,heroTexture).setScale(p.id===state.id ? .9 : .82).setTint(p.id===state.id?(p.color||state.heroColor||0xffffff):0x98b7ff);
         const name=this.add.text(p.x,p.y-48,p.name,{fontFamily:'Inter',fontSize:'11px',fontStyle:'bold',color:p.pvp?'#ff557c':'#ffffff'}).setOrigin(.5);
         entity={sprite,name,targetX:p.x,targetY:p.y}; this.entities.set(`p-${p.id}`,entity);
         if(p.id===state.id) this.cameras.main.startFollow(sprite,true,.08,.08);
