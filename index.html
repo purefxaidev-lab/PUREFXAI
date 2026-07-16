@@ -24,7 +24,7 @@
       <div class="nav-links">
         <a href="#vision">Vision</a><a href="#capabilities">Capabilities</a><a href="#work">Selected work</a>
       </div>
-      <a class="nav-cta magnetic" href="#contact">Start a project <span>↗</span></a>
+      <div class="nav-actions"><button class="nav-cta auth-button" id="authButton">เข้าสู่ระบบ</button><a class="nav-cta magnetic" href="#contact">Start a project <span>↗</span></a></div>
       <button class="menu-button" aria-label="เปิดเมนู" aria-expanded="false"><span></span><span></span></button>
     </nav>
   </header>
@@ -149,6 +149,10 @@
         <div><strong id="voiceLabel">เริ่ม Live Voice</strong><small>พูดคุยด้วยเสียงแบบเรียลไทม์</small></div>
         <div class="audio-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
       </div>
+      <div class="live-mode-picker" aria-label="เลือกโหมด Gemini Live">
+        <button class="active" data-live-mode="chat"><b>AI สนทนา</b><small>Gemini 3.1 Flash Live</small></button>
+        <button data-live-mode="translate"><b>ล่ามสด EN</b><small>Gemini 3.5 Live Translate</small></button>
+      </div>
       <form class="ai-form" id="aiForm">
         <input id="aiInput" autocomplete="off" maxlength="500" placeholder="พิมพ์ข้อความถึง PURE AI…" aria-label="ข้อความถึง PURE AI">
         <button type="submit" aria-label="ส่งข้อความ">↑</button>
@@ -157,9 +161,29 @@
     </section>
   </aside>
 
+  <div class="auth-modal" id="authModal" aria-hidden="true">
+    <div class="auth-backdrop" data-auth-close></div>
+    <section class="auth-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <button class="auth-close" data-auth-close aria-label="ปิด">×</button>
+      <div class="brand-mark">P</div><div class="eyebrow">PUREFXAI MEMBERS</div>
+      <h2 id="authTitle">ยินดีต้อนรับกลับ</h2><p>เข้าสู่ระบบเพื่อใช้ Gemini Live และบันทึกประวัติการสนทนาของคุณ</p>
+      <button class="google-login" id="googleLogin"><span>G</span> ดำเนินการต่อด้วย Google</button>
+      <div class="auth-divider"><span>หรือใช้อีเมล</span></div>
+      <form id="authForm">
+        <label>อีเมล<input id="authEmail" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+        <label>รหัสผ่าน<input id="authPassword" type="password" autocomplete="current-password" minlength="6" required placeholder="อย่างน้อย 6 ตัวอักษร"></label>
+        <button class="auth-submit" type="submit">เข้าสู่ระบบ</button>
+      </form>
+      <button class="auth-switch" id="authSwitch">ยังไม่มีบัญชี? <b>สมัครสมาชิก</b></button>
+      <div class="auth-error" id="authError" role="alert"></div>
+    </section>
+  </div>
+
   <footer class="container footer"><a class="brand" href="#home"><span class="brand-mark">P</span>PUREFXAI</a><p>© 2026 PUREFXAI. Intelligence, amplified.</p><div><a href="#">TikTok</a><a href="#">YouTube</a><a href="#">Instagram</a></div></footer>
   <script src="config.js"></script>
   <script src="script.js" defer></script>
+  <script src="gemini-live.js" defer></script>
   <script src="assistant.js" defer></script>
+  <script src="auth.js" type="module"></script>
 </body>
 </html>
