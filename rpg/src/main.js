@@ -3,12 +3,22 @@ import { GoogleGenAI, Modality } from '@google/genai';
 import './style.css';
 
 const WORLD = { width: 2200, height: 1500 };
-const state = { id: null, sessionToken: null, players: {}, mobs: {}, pets: [], hp: 100, maxHp: 100, xp: 0, level: 1, pvp: false, autoFarm: false };
-const ui = Object.fromEntries(['loadingScreen','loadingStatus','onlineCount','playerName','level','hpBar','hpText','xpBar','xpText','petCount','petSlots','questProgress','pvpBadge','farmBadge','toast','npcVoice','npcStatus','voiceButton','transcript','npcChatLog','npcChatForm','npcChatInput'].map(id => [id, document.getElementById(id)]));
+const state = { id: null, sessionToken: null, players: {}, mobs: {}, pets: [], hp: 100, maxHp: 100, xp: 0, level: 1, pvp: false, autoFarm: false, offline:false, heroColor:Number(localStorage.getItem('purefxai-color')||0xffffff), heroClass:localStorage.getItem('purefxai-class')||'Nexus Blade', heroGender:localStorage.getItem('purefxai-gender')||'female' };
+const ui = Object.fromEntries(['landing','enterGame','landingOnline','heroNameInput','heroClassInput','heroGenderInput','heroColorInput','loadingScreen','loadingStatus','onlineCount','playerName','level','hpBar','hpText','xpBar','xpText','petCount','petSlots','questProgress','pvpBadge','farmBadge','toast','npcVoice','npcStatus','voiceButton','transcript','npcChatLog','npcChatForm','npcChatInput'].map(id => [id, document.getElementById(id)]));
 let socket;
 let gameScene;
 let toastTimer;
 let liveVoice;
+let reconnects = 0;
+let offlineTimer;
+const localCreatures = [
+  {name:'Voltbit',color:'#64eaff',glyph:'ϟ',rarity:1,texture:'beastVoltbit'},
+  {name:'Mossling',color:'#9cff55',glyph:'❋',rarity:1,texture:'beastMoss'},
+  {name:'Emberoo',color:'#ff8161',glyph:'✦',rarity:2,texture:'beastFrost'},
+  {name:'Nyxwing',color:'#a678ff',glyph:'◆',rarity:3,texture:'beastNyx'},
+  {name:'Lunabun',color:'#ffffff',glyph:'☾',rarity:2,texture:'beastMoss'},
+  {name:'Cryodrake',color:'#8ee8ff',glyph:'❄',rarity:3,texture:'beastFrost'}
+];
 
 function showToast(message) {
   ui.toast.textContent = message;
@@ -38,9 +48,11 @@ function updateHud() {
 }
 
 function connect() {
+  if (state.offline) return;
   const url = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.hostname}:${import.meta.env.VITE_WS_PORT || 8080}`;
   socket = new WebSocket(url);
   socket.addEventListener('open', () => {
+    reconnects = 0;
     const savedName = localStorage.getItem('purefxai-name') || `PURE-${Math.floor(100 + Math.random() * 900)}`;
     localStorage.setItem('purefxai-name', savedName);
     socket.send(JSON.stringify({ type: 'join', name: savedName }));
@@ -58,6 +70,7 @@ function connect() {
       state.players = msg.players;
       state.mobs = msg.mobs;
       ui.onlineCount.textContent = Object.keys(msg.players).length;
+      ui.landingOnline.textContent = `${Object.keys(msg.players).length} hero online`;
       const me = msg.players[state.id];
       if (me) Object.assign(state, { hp: me.hp, maxHp: me.maxHp, xp: me.xp, level: me.level, pets: me.pets, pvp: me.pvp, autoFarm: me.autoFarm, farmMinutesLeft: me.farmMinutesLeft });
       updateHud();
@@ -67,14 +80,78 @@ function connect() {
   });
   socket.addEventListener('close', () => {
     ui.loadingScreen.classList.remove('ready');
-    ui.loadingStatus.textContent = 'การเชื่อมต่อขาดหาย · กำลังลองใหม่';
-    setTimeout(connect, 1800);
+    reconnects += 1;
+    if (reconnects >= 2) startOffline();
+    else {
+      ui.loadingStatus.textContent = 'การเชื่อมต่อขาดหาย · กำลังลองใหม่';
+      setTimeout(connect, 1800);
+    }
   });
   socket.addEventListener('error', () => socket.close());
 }
 
+ui.heroNameInput.value = localStorage.getItem('purefxai-name') || '';
+ui.heroClassInput.value = state.heroClass;
+ui.heroClassInput.addEventListener('change', () => { state.heroClass = ui.heroClassInput.value; localStorage.setItem('purefxai-class', state.heroClass); });
+ui.heroGenderInput.value=state.heroGender;
+ui.heroGenderInput.addEventListener('change', () => { state.heroGender = ui.heroGenderInput.value; localStorage.setItem('purefxai-gender', state.heroGender); });
+ui.heroNameInput.addEventListener('input', () => { const name = ui.heroNameInput.value.trim(); if(name) localStorage.setItem('purefxai-name', name); });
+ui.heroColorInput.querySelectorAll('button').forEach(button => button.addEventListener('click', () => {
+  ui.heroColorInput.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  button.classList.add('active');
+  state.heroColor = Number(button.dataset.color);
+  localStorage.setItem('purefxai-color', String(state.heroColor));
+}));
+
+ui.enterGame.addEventListener('click', () => {
+  const name = ui.heroNameInput.value.trim();
+  if (name) localStorage.setItem('purefxai-name', name);
+  ui.landing.classList.add('hidden');
+  ui.loadingScreen.classList.remove('ready');
+  setTimeout(() => ui.loadingScreen.classList.add('ready'), socket?.readyState === WebSocket.OPEN ? 450 : 1200);
+});
+
 function send(payload) {
+  if (state.offline) return offlineSend(payload);
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
+}
+
+function makeOfflineMob(i){
+  const c=localCreatures[i%localCreatures.length];
+  return {id:`mob-${i}-${Math.random().toString(16).slice(2)}`,...c,x:260+Math.random()*1550,y:240+Math.random()*1050,hp:100,maxHp:100,level:1+Math.floor(Math.random()*6),vx:(Math.random()-.5)*18,vy:(Math.random()-.5)*18};
+}
+function startOffline(){
+  if(state.offline) return;
+  state.offline=true; state.id='local-hero'; state.sessionToken='local';
+  const name=localStorage.getItem('purefxai-name')||`PURE-${Math.floor(100+Math.random()*900)}`;
+  state.players={[state.id]:{id:state.id,name,x:430,y:390,hp:100,maxHp:100,xp:0,level:1,pets:[],pvp:false,autoFarm:false,farmMinutesLeft:120,color:state.heroColor,heroClass:state.heroClass}};
+  state.mobs=Object.fromEntries(Array.from({length:28},(_,i)=>{const m=makeOfflineMob(i);return [m.id,m]}));
+  ui.playerName.textContent=name; ui.onlineCount.textContent='SOLO'; ui.landingOnline.textContent='Solo demo ready'; ui.loadingStatus.textContent='โหมดเล่นเดี่ยวพร้อมเล่น · Online server จะต่อเพิ่มภายหลัง';
+  showToast('เข้าโหมดเล่นเดี่ยวก่อน · ระบบออนไลน์จะเปิดเมื่อ server พร้อม');
+  offlineTimer=setInterval(offlineTick,1000/15); offlineTick();
+}
+function offlineEvent(message){ showToast(message); }
+function offlineSnapshot(){
+  const me=state.players[state.id];
+  Object.assign(state,{hp:me.hp,maxHp:me.maxHp,xp:me.xp,level:me.level,pets:me.pets,pvp:me.pvp,autoFarm:me.autoFarm,farmMinutesLeft:me.farmMinutesLeft});
+  updateHud(); gameScene?.syncWorld({players:state.players,mobs:state.mobs});
+}
+function offlineLevelUp(p){while(p.xp>=p.level*100){p.xp-=p.level*100;p.level++;p.maxHp+=12;p.hp=p.maxHp;offlineEvent(`LEVEL UP! ตอนนี้เลเวล ${p.level}`)}}
+function offlineNearest(origin,list,max=140){return list.filter(x=>Math.hypot(x.x-origin.x,x.y-origin.y)<=max).sort((a,b)=>Math.hypot(a.x-origin.x,a.y-origin.y)-Math.hypot(b.x-origin.x,b.y-origin.y))[0]}
+function offlineSend(payload){
+  const p=state.players[state.id]; if(!p)return;
+  if(payload.type==='move'){const mag=Math.hypot(Number(payload.x)||0,Number(payload.y)||0)||1;p.x=Math.max(40,Math.min(2160,p.x+(Number(payload.x)||0)/mag*12));p.y=Math.max(80,Math.min(1460,p.y+(Number(payload.y)||0)/mag*12));}
+  if(payload.type==='togglePvp'){p.pvp=!p.pvp;offlineEvent(p.pvp?'PVP demo ON · ต้องมี server เพื่อเจอผู้เล่นจริง':'PVP OFF')}
+  if(payload.type==='toggleAutoFarm'){p.autoFarm=!p.autoFarm;offlineEvent(p.autoFarm?'เริ่ม Auto Farm demo':'หยุด Auto Farm แล้ว')}
+  if(payload.type==='attack'){const mob=offlineNearest(p,Object.values(state.mobs).filter(m=>m.hp>0),130);if(!mob)return offlineEvent('ไม่มีเป้าหมายในระยะ');mob.hp=Math.max(0,mob.hp-(16+p.level*3+(p.pets[0]?.level||0)));if(!mob.hp){p.xp+=25+mob.level*8;offlineEvent(`กำจัด ${mob.name} +${25+mob.level*8} EXP`);delete state.mobs[mob.id];const nm=makeOfflineMob(Math.floor(Math.random()*localCreatures.length));state.mobs[nm.id]=nm;offlineLevelUp(p)}}
+  if(payload.type==='capture'){if(p.pets.length>=3)return offlineEvent('ทีมสัตว์เลี้ยงเต็มแล้ว');const mob=offlineNearest(p,Object.values(state.mobs).filter(m=>m.hp>0),145);if(!mob)return offlineEvent('เข้าใกล้ Nexus Beast ก่อน');if(mob.hp>35)return offlineEvent('ลด HP ให้ต่ำกว่า 35% ก่อนจับ');const chance=Math.max(.2,Math.min(.86,.75-mob.rarity*.11+(35-mob.hp)/100));if(Math.random()<chance){p.pets.push({id:`pet-${Date.now()}`,name:mob.name,color:mob.color,glyph:mob.glyph,level:mob.level,rarity:mob.rarity});p.xp+=35;offlineEvent(`จับ ${mob.name} สำเร็จ!`);delete state.mobs[mob.id];const nm=makeOfflineMob(Math.floor(Math.random()*localCreatures.length));state.mobs[nm.id]=nm;offlineLevelUp(p)}else offlineEvent(`${mob.name} หลุดออกจาก Nexus Core`)}
+  offlineSnapshot();
+}
+function offlineTick(){
+  const p=state.players[state.id]; if(!p)return;
+  if(p.autoFarm){const mob=offlineNearest(p,Object.values(state.mobs).filter(m=>m.hp>0),520);if(mob){const d=Math.hypot(mob.x-p.x,mob.y-p.y)||1;if(d>110){p.x+=((mob.x-p.x)/d)*3.5;p.y+=((mob.y-p.y)/d)*3.5}else if(Math.random()<.12)offlineSend({type:'attack'});}}
+  Object.values(state.mobs).forEach(m=>{m.x=Math.max(80,Math.min(2100,m.x+m.vx));m.y=Math.max(100,Math.min(1400,m.y+m.vy));if(Math.random()<.025){m.vx=(Math.random()-.5)*18;m.vy=(Math.random()-.5)*18}});
+  offlineSnapshot();
 }
 
 function bytesToBase64(bytes) {
@@ -152,6 +229,7 @@ ui.voiceButton.addEventListener('click',async()=>{try{liveVoice||=new GeminiNpcV
 function addChatMessage(role,text){const p=document.createElement('p');p.className=role;p.textContent=text;ui.npcChatLog.appendChild(p);ui.npcChatLog.scrollTop=ui.npcChatLog.scrollHeight}
 ui.npcChatForm.addEventListener('submit',async event=>{
   event.preventDefault();const message=ui.npcChatInput.value.trim();if(!message||!state.id)return;
+  if(state.offline){addChatMessage('user',message);ui.npcChatInput.value='';addChatMessage('astra',`ตอนนี้เป็นโหมด demo ค่ะ ${ui.playerName.textContent} — ลองกด SPACE ตีมอน, E จับสัตว์, F เปิด Auto Farm ได้เลย ✦`);return}
   addChatMessage('user',message);ui.npcChatInput.value='';ui.npcChatInput.disabled=true;ui.npcStatus.textContent='ASTRA กำลังคิดด้วย Gemini 3.5 Flash…';
   try{
     const apiBase=import.meta.env.VITE_API_URL||`${location.protocol}//${location.hostname}:${import.meta.env.VITE_WS_PORT||8080}`;
@@ -162,6 +240,9 @@ ui.npcChatForm.addEventListener('submit',async event=>{
 
 class NexusScene extends Phaser.Scene {
   constructor(){ super('Nexus'); this.entities = new Map(); this.lastMove = 0; }
+  preload() {
+    this.load.image('assetSheet', '/assets/purefxai-rpg-asset-sheet.png');
+  }
   create() {
     gameScene = this;
     this.createTextures();
@@ -175,9 +256,27 @@ class NexusScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-F', () => send({type:'toggleAutoFarm'}));
   }
   createTextures() {
-    const g = this.make.graphics({x:0,y:0,add:false});
-    g.fillStyle(0x1b2942).fillCircle(32,36,24).fillStyle(0xbcff35).fillTriangle(32,4,18,25,46,25).fillStyle(0x61e9ff).fillCircle(24,34,4).fillCircle(40,34,4).fillStyle(0xffffff).fillRoundedRect(25,44,14,4,2); g.generateTexture('hero',64,68); g.clear();
-    g.fillStyle(0x8b67ff).fillCircle(28,32,23).fillStyle(0xc4b6ff).fillTriangle(8,16,19,4,22,20).fillTriangle(34,20,38,4,49,17).fillStyle(0xffffff).fillCircle(20,30,4).fillCircle(36,30,4).fillStyle(0x101526).fillCircle(20,30,2).fillCircle(36,30,2); g.generateTexture('beast',56,58); g.destroy();
+    const sheet = this.textures.get('assetSheet').getSourceImage();
+    this.textures.addCanvas('hero', this.cropAsset(sheet, 30, 35, 455, 705, 160, 220));
+    this.textures.addCanvas('beastVoltbit', this.cropAsset(sheet, 510, 95, 240, 310, 112, 122));
+    this.textures.addCanvas('beastFrost', this.cropAsset(sheet, 760, 95, 300, 310, 132, 120));
+    this.textures.addCanvas('beastNyx', this.cropAsset(sheet, 500, 430, 250, 280, 120, 112));
+    this.textures.addCanvas('beastMoss', this.cropAsset(sheet, 760, 420, 260, 300, 120, 120));
+  }
+  cropAsset(sheet, sx, sy, sw, sh, dw, dh) {
+    const canvas = document.createElement('canvas');
+    canvas.width = dw;
+    canvas.height = dh;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,dw,dh);
+    ctx.drawImage(sheet, sx, sy, sw, sh, 0, 0, dw, dh);
+    return canvas;
+  }
+  beastTexture(name) {
+    if(name === 'Voltbit') return 'beastVoltbit';
+    if(name === 'Emberoo' || name === 'Cryodrake') return 'beastFrost';
+    if(name === 'Nyxwing') return 'beastNyx';
+    return 'beastMoss';
   }
   drawWorld() {
     const bg = this.add.graphics();
@@ -197,7 +296,7 @@ class NexusScene extends Phaser.Scene {
       alive.add(`p-${p.id}`);
       let entity = this.entities.get(`p-${p.id}`);
       if(!entity){
-        const sprite=this.add.image(p.x,p.y,'hero').setTint(p.id===state.id?0xffffff:0x8aa7d8);
+        const sprite=this.add.image(p.x,p.y,'hero').setScale(p.id===state.id ? .9 : .82).setTint(p.id===state.id?(p.color||state.heroColor||0xffffff):0x98b7ff);
         const name=this.add.text(p.x,p.y-48,p.name,{fontFamily:'Inter',fontSize:'11px',fontStyle:'bold',color:p.pvp?'#ff557c':'#ffffff'}).setOrigin(.5);
         entity={sprite,name,targetX:p.x,targetY:p.y}; this.entities.set(`p-${p.id}`,entity);
         if(p.id===state.id) this.cameras.main.startFollow(sprite,true,.08,.08);
@@ -208,7 +307,7 @@ class NexusScene extends Phaser.Scene {
       alive.add(`m-${m.id}`);
       let entity=this.entities.get(`m-${m.id}`);
       if(!entity){
-        const sprite=this.add.image(m.x,m.y,'beast').setTint(Phaser.Display.Color.HexStringToColor(m.color).color);
+        const sprite=this.add.image(m.x,m.y,this.beastTexture(m.name)).setScale(.88).setTint(Phaser.Display.Color.HexStringToColor(m.color).color);
         const name=this.add.text(m.x,m.y-42,`${m.name} · ${m.hp}%`,{fontFamily:'Inter',fontSize:'10px',fontStyle:'bold',color:'#d6e3ff'}).setOrigin(.5);
         entity={sprite,name,targetX:m.x,targetY:m.y};this.entities.set(`m-${m.id}`,entity);
       }
@@ -231,3 +330,4 @@ class NexusScene extends Phaser.Scene {
 new Phaser.Game({type:Phaser.AUTO,parent:'game',width:1280,height:720,backgroundColor:'#080d18',physics:{default:'arcade'},scene:[NexusScene],scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},render:{antialias:true,pixelArt:false}});
 connect();
 updateHud();
+
